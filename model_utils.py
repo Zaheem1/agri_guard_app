@@ -1,6 +1,6 @@
 import os
 import numpy as np
-import tflite_runtime.interpreter as tflite
+import cv2
 import requests
 from PIL import Image
 
@@ -16,7 +16,7 @@ CLASS_NAMES = [
     'Wheat___Septoria_Leaf_Blotch'
 ]
 
-# 2. Urdu localization diagnostic alerts map for farmers
+# 2. Urdu localization diagnostic alerts map
 URDU_DIAGNOSTICS_MAP = {
     'Cotton___Bacterial_Blight': "کپاس میں بیکٹیریل بلائٹ کی بیماری پائی گئی ہے۔ پودوں میں فاصلہ رکھیں، نائٹروجن کھاد کم کریں، اور تانبے والی دوائی کا سپرے کریں۔",
     'Cotton___Healthy': "آپ کی کپاس کی فصل بالکل صحت مند اور تندرست ہے۔ صفائی کا خاص خیال رکھیں۔",
@@ -30,60 +30,52 @@ URDU_DIAGNOSTICS_MAP = {
 
 def load_inference_model():
     """
-    Loads the lightweight quantized TFLite interpreter instead of full TensorFlow.
-    This protects Streamlit Cloud containers from running out of RAM.
+    Loads the model using OpenCV's highly stable DNN framework.
+    Completely bypasses TensorFlow and TFLite installation runtime crashes.
     """
     model_path = "crop_disease_model_quantized.tflite"  
     
     if os.path.exists(model_path):
-        interpreter = tflite.Interpreter(model_path=model_path)
-        interpreter.allocate_tensors()
-        return interpreter
+        # OpenCV reads the TFLite graph directly into an optimized CPU forward network
+        net = cv2.dnn.readNetFromTFLite(model_path)
+        return net
     else:
-        raise FileNotFoundError(f"❌ Quantized TFLite model file '{model_path}' not found in repo root folder!")
+        raise FileNotFoundError(f"❌ Model file '{model_path}' not found in repo root folder!")
 
-def predict_crop_disease(interpreter, pil_image):
-    """
-    Processes the raw image and runs inference using the TFLite Interpreter.
-    Maintains raw [0, 255] float scaling required natively by EfficientNet base layers.
-    """
-    # Get structural input and output details from the TFLite graph
-    input_details = interpreter.get_input_details()
-    output_details = interpreter.get_output_details()
+def predict_crop_disease(net, pil_image):
+    """Processes image and handles inference using OpenCV blob calculations"""
+    # 1. Convert PIL image to NumPy RGB array
+    img_rgb = np.array(pil_image.convert('RGB'))
     
-    # Preprocess the input image to match EfficientNet dimensions (224x224)
-    resized_img = pil_image.resize((224, 224))
-    img_array = np.array(resized_img, dtype=np.float32)
+    # 2. Use OpenCV blobFromImage to resize to 224x224 and preserve raw float values
+    blob = cv2.dnn.blobFromImage(
+        img_rgb, 
+        scalefactor=1.0, 
+        size=(224, 224), 
+        mean=(0, 0, 0), 
+        swapRB=False, 
+        crop=False
+    )
     
-    # Append Channels-Last batch dimension: shape transforms to (1, 224, 224, 3)
-    img_tensor = np.expand_dims(img_array, axis=0)
+    # 3. Pass the blob input directly into the network graph
+    net.setInput(blob)
     
-    # Bind the preprocessed image data array to the input tensor slot
-    interpreter.set_tensor(input_details[0]['index'], img_tensor)
+    # 4. Execute the forward pass propagation
+    predictions = net.forward()
     
-    # Run the TFLite math engine calculation forward pass
-    interpreter.invoke()
-    
-    # Retrieve the raw prediction probabilities matrix from the output tensor layer
-    predictions = interpreter.get_tensor(output_details[0]['index'])
+    # 5. Extract results
     predicted_idx = np.argmax(predictions[0])
     confidence = predictions[0][predicted_idx] * 100
     
     return CLASS_NAMES[predicted_idx], confidence
 
 def generate_urdu_audio_api(text_prompt):
-    """
-    Generates localized Urdu speech audio bytes using Hugging Face's cloud inference API.
-    Bypasses the need to install a 1GB+ local PyTorch speech framework package.
-    """
+    """Generates localized Urdu speech using Hugging Face's cloud inference API"""
     API_URL = "https://api-inference.huggingface.co/models/facebook/mms-tts-urd"
-    
     try:
         response = requests.post(API_URL, json={"inputs": text_prompt}, timeout=15)
         if response.status_code == 200:
-            # Return raw audio bytes from the server and standard 16kHz sampling rate
             return response.content, 16000
     except Exception as e:
         print(f"Audio cloud generation fallback triggered: {e}")
-        
     return None, None
