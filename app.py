@@ -1,77 +1,74 @@
-import os
-import numpy as np
-import tensorflow as tf
-import torch
-from transformers import VitsModel, AutoTokenizer
+import streamlit as st
 from PIL import Image
+import io
 
-# Exact class indices matching your Keras alphabetical dataset layout
-CLASS_NAMES = [
-    'Cotton___Bacterial_Blight', 
-    'Cotton___Healthy', 
-    'Rice___Blast', 
-    'Rice___Brown_Spot', 
-    'Rice___Healthy', 
-    'Wheat___Healthy', 
-    'Wheat___Leaf_Rust', 
-    'Wheat___Septoria_Leaf_Blotch'
-]
+# Import your optimized, lightweight OpenCV and API mechanics
+from model_utils import (
+    load_inference_model, 
+    predict_crop_disease, 
+    generate_urdu_audio_api, 
+    URDU_DIAGNOSTICS_MAP
+)
 
-URDU_DIAGNOSTICS_MAP = {
-    'Cotton___Bacterial_Blight': "کپاس میں بیکٹیریل بلائٹ کی بیماری پائی گئی ہے۔ پودوں میں فاصلہ رکھیں، نائٹروجن کھاد کم کریں، اور تانبے والی دوائی کا سپرے کریں۔",
-    'Cotton___Healthy': "آپ کی کپاس کی فصل بالکل صحت مند اور تندرست ہے۔ صفائی کا خاص خیال رکھیں۔",
-    'Rice___Blast': "چاول میں بلاسٹ کی بیماری دیکھی گئی ہے۔ نائٹروجن کا استعمال کم کریں اور فوری طور پر فنگسائڈ کا سپرے کریں۔",
-    'Rice___Brown_Spot': "چاول کے پتے پر بھورے دھبے دیکھے گئے ہیں۔ یہ عام طور پر غذائیت کی کمی کی علامت ہے۔ کھاد کا متوازن استعمال یقینی بنائیں۔",
-    'Rice___Healthy': "آپ کے چاول کی فصل بالکل ٹھیک اور صحت مند ہے۔ پانی اور کھاد کا باقاعدگی سے استعمال جاری رکھیں۔",
-    'Wheat___Healthy': "آپ کی گندم کی فصل بالکل تندرست ہے۔ موسمی حالات کے مطابق پانی دیتے رہیں۔",
-    'Wheat___Leaf_Rust': "گندم میں لیف رسٹ (کنگی) کی بیماری دیکھی گئی ہے۔ فصل کا معائنہ بڑھائیں اور فوری طور پر سفارش کردہ فنگسائڈ سپرے کریں۔",
-    'Wheat___Septoria_Leaf_Blotch': "گندم کے پتے پر جھلساؤ (سیپٹوریا) کی علامات ہیں۔ متاثرہ پتوں کو دور رکھیں اور کیمیائی سپرے کا استعمال کریں۔"
-}
+# --- UI Page Configuration ---
+st.set_page_config(
+    page_title="AgriGuard - Crop Disease Diagnostics",
+    page_icon="🌱",
+    layout="centered"
+)
 
-def load_inference_model():
-    """Loads the core trained Keras model containing the EfficientNet base and top heads"""
-    model_path = "crop_disease_model.keras"  # Place your real exported model file here
-    if os.path.exists(model_path):
-        return tf.keras.models.load_model(model_path)
+st.title("🌱 AgriGuard: AI Crop Disease Assistant")
+st.write("Upload a leaf image of **Cotton, Rice, or Wheat** to detect diseases and listen to localized remedies in Urdu.")
+
+# --- Cache Model Loading ---
+@st.cache_resource
+def get_model():
+    try:
+        return load_inference_model()
+    except Exception as e:
+        st.error(f"Failed to load model: {e}")
+        return None
+
+# Initialize the OpenCV DNN framework network
+net = get_model()
+
+# --- Image Upload Section ---
+uploaded_file = st.file_uploader("Choose a crop leaf image...", type=["jpg", "jpeg", "png"])
+
+if uploaded_file is not None:
+    # Display the uploaded asset cleanly
+    image = Image.open(uploaded_file)
+    st.image(image, caption="Uploaded Crop Leaf Image", use_container_width=True)
+    
+    st.write("🔄 Running diagnostics matrix...")
+    
+    if net is not None:
+        try:
+            # 1. Run inference using the OpenCV DNN function wrapper
+            class_name, confidence = predict_crop_disease(net, image)
+            
+            # 2. Display localized results panel
+            st.subheader("📊 Diagnostic Results")
+            st.metric(label="Detected Condition", value=class_name.replace("___", " - "))
+            st.write(f"**Confidence Level:** {confidence:.2f}%")
+            
+            # 3. Retrieve and present localized Urdu advice text
+            urdu_advice = URDU_DIAGNOSTICS_MAP.get(class_name, "معلومات دستیاب نہیں ہیں۔")
+            
+            st.markdown("---")
+            st.subheader("📢 اردو میں معلوماتی رہنمائی (Urdu Advisory)")
+            st.info(urdu_advice)
+            
+            # 4. Stream Audio via Cloud Inference API safely without local PyTorch
+            with st.spinner("🔊 Generating audio advice..."):
+                audio_bytes, sampling_rate = generate_urdu_audio_api(urdu_advice)
+                
+                if audio_bytes:
+                    st.audio(audio_bytes, format="audio/wav", start_time=0)
+                else:
+                    st.warning("⚠️ Could not generate audio at this moment. Please read the advisory text above.")
+                    
+        except Exception as e:
+            st.error(f"An error occurred during image assessment: {e}")
     else:
-        raise FileNotFoundError(f"Model file not found at {model_path}. Please upload it to your workspace root.")
-
-def predict_crop_disease(model, pil_image):
-    """Processes image and handles inputs exactly matching TensorFlow EfficientNet pipeline rules"""
-    # Step A: Resize precisely to matches network input dimensions
-    resized_img = pil_image.resize((224, 224))
-    
-    # Step B: Cast image object to structural float32 array
-    img_array = np.array(resized_img, dtype=np.float32)
-    
-    # Step C: CRITICAL FIX: DO NOT normalize or divide by 255.0 for EfficientNet-B0!
-    # EfficientNet has native scaling layers embedded in its core graph layer trees.
-    
-    # Step D: Append Channels-Last batch dimension: shape maps to (1, 224, 224, 3)
-    img_tensor = np.expand_dims(img_array, axis=0)
-    
-    # Step E: Execute graph evaluation
-    predictions = model.predict(img_tensor)
-    predicted_idx = np.argmax(predictions[0])
-    confidence = predictions[0][predicted_idx] * 100
-    
-    return CLASS_NAMES[predicted_idx], confidence
-
-def load_voice_components():
-    """Loads Meta MMS VITS model elements for Urdu TTS speech rendering"""
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    tokenizer = AutoTokenizer.from_pretrained("facebook/mms-tts-urd")
-    tts_model = VitsModel.from_pretrained("facebook/mms-tts-urd").to(device)
-    return tokenizer, tts_model, device
-
-def generate_urdu_audio(tokenizer, tts_model, device, text_prompt):
-    """Generates a localized audio vector sequence from Urdu diagnostic mappings"""
-    inputs = tokenizer(text_prompt, return_tensors="pt")
-    inputs = {k: v.to(device) for k, v in inputs.items()}
-    
-    with torch.no_grad():
-        output = tts_model(**inputs)
-        # Extract native raw audio waveform array values
-        audio_data = output.waveform[0].cpu().numpy()
-    
-    return audio_data, tts_model.config.sampling_rate
+        st.error("AI engine is unavailable because the model file failed to load.")
