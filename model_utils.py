@@ -4,6 +4,7 @@ import requests
 from PIL import Image
 import io
 
+# Exact class indices matching your production model output layer
 CLASS_NAMES = [
     'Cotton___Bacterial_Blight', 
     'Cotton___Healthy', 
@@ -15,6 +16,7 @@ CLASS_NAMES = [
     'Wheat___Septoria_Leaf_Blotch'
 ]
 
+# Urdu localization diagnostic alerts map
 URDU_DIAGNOSTICS_MAP = {
     'Cotton___Bacterial_Blight': "کپاس میں بیکٹیریل بلائٹ کی بیماری پائی گئی ہے۔ پودوں میں فاصلہ رکھیں، نائٹروجن کھاد کم کریں، اور تانبے والی دوائی کا سپرے کریں۔",
     'Cotton___Healthy': "آپ کی کپاس کی فصل بالکل صحت مند اور تندرست ہے۔ صفائی کا خاص خیال رکھیں۔",
@@ -38,9 +40,9 @@ def predict_crop_disease(model_path, pil_image):
         pil_image.save(img_byte_arr, format='JPEG')
         img_bytes = img_byte_arr.getvalue()
         
-        # CHANGE THIS to match your exact Hugging Face Username
-       hf_username = "zaheem2"
-       space_url = f"https://{hf_username}-agri-guard-engine.hf.space/"
+        # Exact Hugging Face Endpoint setup
+        hf_username = "zaheem2"
+        space_url = f"https://{hf_username}-agri-guard-engine.hf.space/"
         
         # Stream the image to the background engine space
         files = {'file': ('image.jpg', img_bytes, 'image/jpeg')}
@@ -58,10 +60,10 @@ def predict_crop_disease(model_path, pil_image):
         print(f"Cloud network exception: {e}")
         
     # Smart color fallback routine if network times out
-    img_array = np.array(pil_image.resize((224,224)), dtype=np.float32)
+    img_array = np.array(pil_image.resize((224, 224)), dtype=np.float32)
     mean_g = np.mean(img_array[:, :, 1])
     mean_r = np.mean(img_array[:, :, 0])
-    predicted_idx = 4 if mean_g > mean_r else 3 # Default Rice Healthy or Rice Brown Spot based on greenness
+    predicted_idx = 4 if mean_g > mean_r else 3  # Default Rice Healthy or Rice Brown Spot based on greenness
     return CLASS_NAMES[predicted_idx], 84.50
 
 def generate_urdu_audio_api(text_prompt):
