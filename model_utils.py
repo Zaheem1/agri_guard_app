@@ -9,10 +9,10 @@ import io
 CLASS_NAMES = [
     'Wheat___Leaf_Rust',            # Index 0
     'Cotton___Healthy',             # Index 1
-    'Rice___Brown_Spot',            # Index 2
+    'Wheat___Septoria_Leaf_Blotch', # Index 2
     'Rice___Blast',                 # Index 3
     'Rice___Healthy',               # Index 4
-    'Wheat___Septoria_Leaf_Blotch', # Index 5
+    'Rice___Brown_Spot',            # Index 5
     'Cotton___Bacterial_Blight',    # Index 6
     'Wheat___Healthy'               # Index 7
 ]
