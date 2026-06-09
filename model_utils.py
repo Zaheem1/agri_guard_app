@@ -8,11 +8,11 @@ import io
 # Swapped healthy and diseased indices to correct the model's inverted outputs
 CLASS_NAMES = [
     'Wheat___Leaf_Rust',            # Index 0
-    'Cotton___Healthy',             # Index 1
+    'Cotton___Bacterial_Blight',    # Index 1
     'Wheat___Septoria_Leaf_Blotch', # Index 2
     'Rice___Blast',                 # Index 3
     'Rice___Healthy',               # Index 4
-    'Cotton___Bacterial_Blight',    # Index 5
+    'Cotton___Healthy',             # Index 5
     'Rice___Brown_Spot',            # Index 6
     'Wheat___Healthy'               # Index 7
 ]
