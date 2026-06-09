@@ -12,8 +12,8 @@ CLASS_NAMES = [
     'Wheat___Septoria_Leaf_Blotch', # Index 2
     'Rice___Blast',                 # Index 3
     'Rice___Healthy',               # Index 4
-    'Rice___Brown_Spot',            # Index 5
-    'Cotton___Bacterial_Blight',    # Index 6
+    'Cotton___Bacterial_Blight',    # Index 5
+    'Rice___Brown_Spot',            # Index 6
     'Wheat___Healthy'               # Index 7
 ]
 # 2. Urdu localization diagnostic alerts map (Using uniform 3-underscore keys)
