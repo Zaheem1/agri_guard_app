@@ -7,16 +7,15 @@ import io
 # 1. FIXED REVERSE ALIGNMENT MATRIX 
 # Swapped healthy and diseased indices to correct the model's inverted outputs
 CLASS_NAMES = [
-    'Cotton___Bacterial_Blight',    # Index 0
+    'Wheat___Leaf_Rust',            # Index 0
     'Cotton___Healthy',             # Index 1
     'Rice___Brown_Spot',            # Index 2
     'Rice___Blast',                 # Index 3
     'Rice___Healthy',               # Index 4
     'Wheat___Septoria_Leaf_Blotch', # Index 5
-    'Wheat___Leaf_Rust',            # Index 6
+    'Cotton___Bacterial_Blight',    # Index 6
     'Wheat___Healthy'               # Index 7
 ]
-
 # 2. Urdu localization diagnostic alerts map (Using uniform 3-underscore keys)
 URDU_DIAGNOSTICS_MAP = {
     'Cotton___Bacterial_Blight': "کپاس میں بیکٹیریل بلائٹ کی بیماری پائی گئی ہے۔ پودوں میں فاصلہ رکھیں، نائٹروجن کھاد کم کریں، اور تانبے والی دوائی کا سپرے کریں۔",
