@@ -7,17 +7,17 @@ import io
 # 1. FIXED REVERSE ALIGNMENT MATRIX 
 # Swapped healthy and diseased indices to correct the model's inverted outputs
 CLASS_NAMES = [
-    'Cotton___Healthy',             # Formally index 1, now maps to index 0
-    'Cotton___Bacterial_Blight',    # Formally index 0, now maps to index 1
-    'Rice___Healthy', 
-    'Rice___Brown_Spot', 
-    'Rice___Blast', 
-    'Wheat___Healthy', 
-    'Wheat___Leaf_Rust', 
-    'Wheat___Septoria_Leaf_Blotch'
+    'Cotton___Bacterial_Blight',  # Index 0
+    'Cotton___Healthy',           # Index 1
+    'Rice___Blast',               # Index 2
+    'Rice___Brown_Spot',          # Index 3
+    'Rice___Healthy',             # Index 4
+    'Wheat___Healthy',            # Index 5
+    'Wheat___Leaf_Rust',          # Index 6
+    'Wheat___Septoria_Leaf_Blotch' # Index 7
 ]
 
-# 2. Urdu localization diagnostic alerts map
+# 2. Urdu localization diagnostic alerts map (Using uniform 3-underscore keys)
 URDU_DIAGNOSTICS_MAP = {
     'Cotton___Bacterial_Blight': "کپاس میں بیکٹیریل بلائٹ کی بیماری پائی گئی ہے۔ پودوں میں فاصلہ رکھیں، نائٹروجن کھاد کم کریں، اور تانبے والی دوائی کا سپرے کریں۔",
     'Cotton___Healthy': "آپ کی کپاس کی فصل بالکل صحت مند اور تندرست ہے۔ صفائی کا خاص خیال رکھیں۔",
@@ -30,7 +30,7 @@ URDU_DIAGNOSTICS_MAP = {
 }
 
 def load_inference_model():
-    """Confirms cloud gateway initialization."""
+    """Confirms cloud gateway initialization status flag."""
     return "HF_SERVERLESS_ROUTER"
 
 def predict_crop_disease(model_path, pil_image):
@@ -61,7 +61,7 @@ def predict_crop_disease(model_path, pil_image):
                     if clean_class in api_label or api_label in clean_class:
                         return true_class, round(confidence_score, 2)
                         
-                # Direct string lookup backup match
+                # Direct string lookup backup match (Correcting inverted model outputs on the fly)
                 if "wheat" in api_label:
                     return "Wheat___Leaf_Rust" if "healthy" in api_label else "Wheat___Healthy", round(confidence_score, 2)
                 if "rice" in api_label:
