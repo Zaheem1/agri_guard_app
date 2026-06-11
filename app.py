@@ -1,74 +1,94 @@
 import streamlit as st
 from PIL import Image
 import io
+import soundfile as sf
+import model_utils as utils
 
-# Import your optimized, lightweight OpenCV and API mechanics
-from model_utils import (
-    load_inference_model, 
-    predict_crop_disease, 
-    generate_urdu_audio_api, 
-    URDU_DIAGNOSTICS_MAP
-)
-
-# --- UI Page Configuration ---
+# Set page characteristics
 st.set_page_config(
-    page_title="AgriGuard - Crop Disease Diagnostics",
+    page_title="AgriGuard Pakistan: Smart Crop Diagnostic System",
     page_icon="🌱",
     layout="centered"
 )
 
-st.title("🌱 AgriGuard: AI Crop Disease Assistant")
-st.write("Upload a leaf image of **Cotton, Rice, or Wheat** to detect diseases and listen to localized remedies in Urdu.")
+# Custom Localized CSS UI Enhancement Styling 
+st.markdown("""
+    <style>
+    .main { background-color: #f7f9fb; }
+    .stButton>button { width: 100%; background-color: #2e7d32; color: white; font-weight: bold; }
+    .report-card { padding: 20px; border-radius: 10px; background-color: white; border-left: 5px solid #2e7d32; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+    </style>
+""", unsafe_allow_html=True)
 
-# --- Cache Model Loading ---
+st.title("🌱 AgriGuard Pakistan")
+st.markdown("### **Automated Crop Disease Diagnosis with Native Urdu Voice Feedback**")
+st.write("Supported Varieties: **Wheat (گندم)** | **Rice (چاول)** | **Cotton (کپاس)**")
+st.markdown("---")
+
+# Optimize loading operations via resource caching
 @st.cache_resource
-def get_model():
-    try:
-        return load_inference_model()
-    except Exception as e:
-        st.error(f"Failed to load model: {e}")
-        return None
+def get_cached_models():
+    model = utils.load_tflite_model()
+    tokenizer, tts_model, device = utils.load_mms_tts_engine()
+    return model, tokenizer, tts_model, device
 
-# Initialize the OpenCV DNN framework network
-net = get_model()
+# Boot up models
+model, tokenizer, tts_model, device = get_cached_models()
 
-# --- Image Upload Section ---
-uploaded_file = st.file_uploader("Choose a crop leaf image...", type=["jpg", "jpeg", "png"])
-
-if uploaded_file is not None:
-    # Display the uploaded asset cleanly
-    image = Image.open(uploaded_file)
-    st.image(image, caption="Uploaded Crop Leaf Image", use_container_width=True)
+if model is None:
+    st.error("❌ Missing Asset: 'crop_disease_model_native.pt' not found in project folder. Please pull the file from Google Colab and place it here.")
+else:
+    # 📸 Step 1: User Upload Intercept Loop
+    st.markdown("### 📸 1. Upload Field Leaf Image")
+    uploaded_file = st.file_uploader("Upload image (PNG, JPG, JPEG)...", type=["jpg", "jpeg", "png"])
     
-    st.write("🔄 Running diagnostics matrix...")
-    
-    if net is not None:
-        try:
-            # 1. Run inference using the OpenCV DNN function wrapper
-            class_name, confidence = predict_crop_disease(net, image)
+    if uploaded_file is not None:
+        # Load and show file
+        image = Image.open(uploaded_file).convert("RGB")
+        st.image(image, caption="Uploaded Specimen View", use_container_width=True)
+        
+        # 🔬 Step 2: Running Inference Execution Check
+        st.markdown("---")
+        st.markdown("### 🎯 2. Diagnostic Summary Results")
+        
+        with st.spinner("Processing image pixels via native math tensors..."):
+            predicted_class, confidence_score = utils.predict_crop_disease(model, image)
             
-            # 2. Display localized results panel
-            st.subheader("📊 Diagnostic Results")
-            st.metric(label="Detected Condition", value=class_name.replace("___", " - "))
-            st.write(f"**Confidence Level:** {confidence:.2f}%")
-            
-            # 3. Retrieve and present localized Urdu advice text
-            urdu_advice = URDU_DIAGNOSTICS_MAP.get(class_name, "معلومات دستیاب نہیں ہیں۔")
-            
-            st.markdown("---")
-            st.subheader("📢 اردو میں معلوماتی رہنمائی (Urdu Advisory)")
-            st.info(urdu_advice)
-            
-            # 4. Stream Audio via Cloud Inference API safely without local PyTorch
-            with st.spinner("🔊 Generating audio advice..."):
-                audio_bytes, sampling_rate = generate_urdu_audio_api(urdu_advice)
+        # Format strings cleanly for the user display card
+        crop_type, condition = predicted_class.split("___")
+        clean_condition = condition.replace("_", " ")
+        
+        # Output Presentation Card Box layout
+        st.markdown(f"""
+        <div class="report-card">
+            <h4>📋 Diagnostics Analysis Card</h4>
+            <p><b>Target Crop Family:</b> {crop_type}</p>
+            <p><b>Classification Label:</b> {clean_condition}</p>
+            <p><b>Statistical Match Confidence:</b> {confidence_score:.2f}%</p>
+        </div>
+        """, unsafe_allow_html=True)
+        st.write("") # Margin spacing block
+        
+        # 🗣️ Step 3: Meta MMS Urdu Voice Feedback Generation Run
+        st.markdown("### 🗣️ 3. Localized Remedy Recommendation (Urdu Voice)")
+        urdu_text = utils.URDU_DIAGNOSTICS_MAP[predicted_class]
+        
+        # Display the Urdu text instruction window
+        st.text_area("Prescription Text (اردو ترجمہ):", value=urdu_text, height=95, disabled=True)
+        
+        with st.spinner("Synthesizing native phonetics via Meta MMS VITS framework..."):
+            try:
+                # Synthesize text directly to sound vectors
+                audio_array, sampling_rate = utils.generate_urdu_audio(tokenizer, tts_model, device, urdu_text)
                 
-                if audio_bytes:
-                    st.audio(audio_bytes, format="audio/wav", start_time=0)
-                else:
-                    st.warning("⚠️ Could not generate audio at this moment. Please read the advisory text above.")
-                    
-        except Exception as e:
-            st.error(f"An error occurred during image assessment: {e}")
-    else:
-        st.error("AI engine is unavailable because the model file failed to load.")
+                # Write back wave streams to a virtual memory buffer file array 
+                virtual_buffer = io.BytesIO()
+                sf.write(virtual_buffer, audio_array, samplerate=sampling_rate, format='WAV')
+                virtual_buffer.seek(0)
+                
+                # Mount interactive audio player controller to the browser DOM interface
+                st.audio(virtual_buffer, format="audio/wav")
+                st.toast("🔊 Audio warning instructions loaded successfully!", icon="✅")
+                
+            except Exception as e:
+                st.error(f"Voice Synthesizer runtime disruption encountered: {e}")
